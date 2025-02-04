@@ -1,176 +1,883 @@
-```javascript
-import React, { useState } from 'react';
+className="flex items-center justify-between p-2 bg-gray-50 rounded"
+            >
+              <div className="flex items-center gap-3">
+                {challenge.success ? (
+                  <Star className="w-5 h-5 text-yellow-500" />
+                ) : (
+                  <Users className="w-5 h-5 text-red-500" />
+                )}
+                <div>
+                  <div className="font-medium capitalize">{challenge.pattern} Pattern</div>
+                  <div className="text-sm text-gray-500">
+                    {new Date(challenge.timestamp).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-medium">{challenge.score} XP</div>
+                <div className="text-sm text-gray-500">
+                  {challenge.success ? 'Success' : 'Failed'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Performance Metrics */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-500">Current Level</div>
+          <div className="text-xl font-bold mt-1 capitalize">{report.currentLevel}</div>
+          <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500"
+              style={{ width: `${report.levelProgress * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-500">Success Rate</div>
+          <div className="text-xl font-bold mt-1">
+            {(report.successRate * 100).toFixed(1)}%
+          </div>
+          <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500"
+              style={{ width: `${report.successRate * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Pattern Performance */}
+      <div>
+        <h3 className="text-sm font-medium text-gray-600 mb-2">Pattern Performance</h3>
+        <div className="grid gap-2">
+          {Object.entries(report.patternPerformance || {}).map(([pattern, stats]) => (
+            <div key={pattern} className="p-3 bg-gray-50 rounded">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-medium capitalize">{pattern}</span>
+                <span className="text-sm text-gray-500">
+                  {((stats.success / stats.total) * 100).toFixed(1)}% Success
+                </span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500"
+                  style={{ width: `${(stats.success / stats.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+/**
+ * Performance Metrics Component for visualization
+ */
+const PerformanceMetrics = ({ data }) => {
+  const chartData = useMemo(() => ({
+    labels: data.map(d => new Date(d.timestamp).toLocaleDateString()),
+    datasets: [{
+      label: 'Score',
+      data: data.map(d => d.score),
+      borderColor: 'rgb(59, 130, 246)',
+      tension: 0.1
+    }]
+  }), [data]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LineChart className="w-6 h-6" />
+          Performance Trends
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64 relative">
+          {/* Add chart visualization here */}
+          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+            Performance visualization would go here
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default TrainingEnvironment;import React, { useState, useCallback, useMemo } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Brain, Trophy, Users, LineChart, Star, Target, Book, Map } from 'lucide-react';
+
+// Import previously defined ChallengeEngine component and mlSystem
+
+/**
+ * Training Environment Component
+ */
+const TrainingEnvironment = () => {
+  const [learningPath] = useState(() => new LearningPath(LEARNING_TRACKS.PATTERN_RECOGNITION));
+  const [activeChallenge, setActiveChallenge] = useState(null);
+  const [showProgress, setShowProgress] = useState(false);
+
+  const progressReport = useMemo(() => 
+    learningPath.getProgressReport(),
+    [learningPath, activeChallenge]
+  );
+
+  const handleChallengeComplete = useCallback((result) => {
+    learningPath.updateProgress(result);
+    setActiveChallenge(null);
+  }, [learningPath]);
+
+  const startNewChallenge = useCallback(() => {
+    setActiveChallenge(learningPath.getNextChallenge());
+    setShowProgress(false);
+  }, [learningPath]);
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="w-8 h-8 text-blue-500" />
+              <span>AI Training Environment</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowProgress(true)}
+                className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+              >
+                View Progress
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                <span className="font-medium">{progressReport.experiencePoints} XP</span>
+              </div>
+            </div>
+          </CardTitle>
+        </CardHeader>
+      </Card>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Learning Path & Progress */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Map className="w-6 h-6" />
+              Learning Path
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Current Track</h3>
+              <p className="text-lg font-semibold capitalize">
+                {learningPath.track.replace('_', ' ')}
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Level</h3>
+              <p className="text-lg font-semibold capitalize">
+                {progressReport.currentLevel}
+              </p>
+              <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${progressReport.levelProgress * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Recent Performance</h3>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <div className="text-sm text-gray-500">Success Rate</div>
+                  <div className="text-xl font-bold text-blue-600">
+                    {(progressReport.successRate * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Challenges</div>
+                  <div className="text-xl font-bold text-green-600">
+                    {progressReport.challengesCompleted}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {progressReport.recommendations.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-600">Recommendations</h3>
+                <ul className="mt-2 space-y-2">
+                  {progressReport.recommendations.map((rec, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <Book className="w-4 h-4 mt-0.5 text-blue-500" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!activeChallenge && (
+              <button
+                onClick={startNewChallenge}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors mt-4"
+              >
+                Start Next Challenge
+              </button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Challenge Area */}
+        <div className="lg:col-span-2">
+          {activeChallenge ? (
+            <ChallengeEngine
+              challenge={activeChallenge}
+              onComplete={handleChallengeComplete}
+            />
+          ) : showProgress ? (
+            <ProgressDetails report={progressReport} />
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <Target className="w-16 h-16 text-blue-500" />
+                  <h2 className="text-xl font-semibold">Ready for Your Next Challenge?</h2>
+                  <p className="text-gray-600 max-w-md">
+                    Start a new challenge to continue your learning journey and improve your AI capabilities.
+                  </p>
+                  <button
+                    onClick={startNewChallenge}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Start Challenge
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Progress Details Component
+ */
+const ProgressDetails = ({ report }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle className="flex items-center gap-2">
+        <LineChart className="w-6 h-6" />
+        Detailed Progress
+      </CardTitle>
+    </CardHeader>
+    <CardContent className="space-y-6">
+      {/* Experience Progress */}
+      <div>
+        <h3 className="text-sm font-medium text-gray-600 mb-2">Experience Growth</h3>
+        <div className="h-32 bg-gray-50 rounded-lg p-4">
+          {/* Add a chart here showing XP over time */}
+        </div>
+      </div>
+
+      {/* Recent History */}
+      <div>
+        <h3 className="text-sm font-medium text-gray-600 mb-2">Recent Challenges</h3>
+        <div className="space-y-2">
+          {report.recentHistory.map((challenge, i) => (
+            <div
+              key={i}
+              className="flex items-center justify-between p-2 bg            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Pattern Challenge</h3>
+              <pre className="whitespace-pre-wrap" role="region" aria-label="Sequence data">
+                {JSON.stringify(currentChallenge.data.sequence, null, 2)}
+              </pre>
+            </div>
+            
+            <div className="flex gap-4">
+              <input
+                type="text"
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your answer..."
+                aria-label="Answer input"
+                disabled={isAISolving}
+              />
+              <button
+                onClick={submitAnswer}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:opacity-50"
+                disabled={isAISolving}
+                aria-label="Submit answer"
+              >
+                Submit
+              </button>
+              <button
+                onClick={handleAISolve}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                disabled={isAISolving}
+                aria-label="Let AI solve challenge"
+              >
+                {isAISolving && <Loader className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                Let AI Solve
+              </button>
+            </div>
+
+            {/* ML System Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="w-6 h-6" aria-hidden="true" />
+                  ML System Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Pattern Weights</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(systemStatus.weights).map(([type, weight]) => (
+                        <div key={type} className="flex justify-between items-center">
+                          <span className="text-sm capitalize">{type}</span>
+                          <span className="text-sm font-medium">{weight.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Recent Performance</h4>
+                    <div className="flex gap-1" role="region" aria-label="Performance history">
+                      {systemStatus.recentResults.map((success, i) => (
+                        <div
+                          key={i}
+                          className={`flex-1 h-2 rounded ${
+                            success ? 'bg-green-500' : 'bg-red-500'
+                          }`}
+                          aria-label={success ? 'Success' : 'Failure'}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Success Rate</h4>
+                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 transition-all duration-500"
+                        style={{ width: `${systemStatus.successRate * 100}%` }}
+                        role="progressbar"
+                        aria-valuenow={systemStatus.successRate * 100}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                      />
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {(systemStatus.successRate * 100).toFixed(1)}% success rate
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Analysis Process */}
+            {aiThoughts.length > 0 && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-2" role="log" aria-label="AI analysis process">
+                <h4 className="font-medium text-gray-700">AI Analysis Process:</h4>
+                {aiThoughts.map((thought, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <Brain className="w-4 h-4 mt-1 text-blue-500" aria-hidden="true" />
+                    <p className="text-sm text-gray-600">{thought}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Performance Metrics */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LineChart className="w-6 h-6" aria-hidden="true" />
+                  Performance Metrics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-1">Success Rate</h4>
+                    <div className="text-2xl font-bold text-blue-600">
+                      {(systemStatus.successRate * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-1">Confidence Level</h4>
+                    <div className="text-2xl font-bold text-green-600">
+                      {(systemStatus.confidenceHistory[systemStatus.confidenceHistory.length - 1]?.confidence * 100 || 0).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Feedback Messages */}
+            {feedback && (
+              <div 
+                className={`flex items-center gap-2 p-4 rounded-lg ${
+                  feedback.status === 'success' ? 'bg-green-100' : 'bg-red-100'
+                }`}
+                role="alert"
+              >
+                {feedback.status === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" aria-hidden="true" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-500" aria-hidden="true" />
+                )}
+                <p className="text-sm">{feedback.message}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ChallengeEngine;import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Brain, Trophy, Users, LineChart, Star, Target, AlertCircle, CheckCircle2, Loader } from 'lucide-react';
 
-const challengeTypes = {
+// Type definitions (would be in .d.ts file in a TypeScript project)
+/**
+ * @typedef {Object} Pattern
+ * @property {string} type - Pattern type (arithmetic, geometric, etc.)
+ * @property {number} confidence - Confidence level in pattern detection
+ */
+
+/**
+ * @typedef {Object} Features
+ * @property {number} mean - Mean value of sequence
+ * @property {number} variance - Variance of sequence
+ * @property {boolean} isArithmetic - Whether sequence follows arithmetic pattern
+ * @property {boolean} isGeometric - Whether sequence follows geometric pattern
+ */
+
+/**
+ * @typedef {Object} Challenge
+ * @property {string} type - Challenge type
+ * @property {Object} data - Challenge data
+ * @property {number[]} data.sequence - Number sequence
+ * @property {number} data.nextNumber - Expected next number
+ * @property {Pattern} data.pattern - Pattern information
+ */
+
+// Constants
+const CHALLENGE_TYPES = {
   PATTERN: 'pattern',
   OPTIMIZATION: 'optimization'
-};
+} as const;
 
-// ML System for pattern detection
-const MLSystem = {
-  memory: {
-    patterns: [],
-    successRates: {},
-    weights: {
-      arithmetic: 1.0,
-      geometric: 1.0,
-      quadratic: 1.0,
-      exponential: 1.0
-    },
-    recentResults: []
-  },
+const PATTERN_TYPES = {
+  ARITHMETIC: 'arithmetic',
+  GEOMETRIC: 'geometric',
+  QUADRATIC: 'quadratic',
+  EXPONENTIAL: 'exponential'
+} as const;
 
-  extractFeatures: (sequence) => {
-    const features = {};
-    
-    // Basic statistics
-    features.mean = sequence.reduce((a, b) => a + b, 0) / sequence.length;
-    features.variance = sequence.reduce((a, b) => a + Math.pow(b - features.mean, 2), 0) / sequence.length;
-    
-    // Differences
-    const differences = sequence.slice(1).map((n, i) => n - sequence[i]);
-    features.diffMean = differences.reduce((a, b) => a + b, 0) / differences.length;
-    
-    // Ratios
-    const ratios = sequence.slice(1).map((n, i) => n / sequence[i]);
-    features.ratioMean = ratios.reduce((a, b) => a + b, 0) / ratios.length;
-    
-    return features;
-  },
-
-  learn: (sequence, pattern, success) => {
-    const features = MLSystem.extractFeatures(sequence);
-    
-    MLSystem.memory.patterns.push({
-      features,
-      pattern,
-      success
-    });
-    
-    // Update weights
-    const learningRate = 0.1;
-    if (success) {
-      MLSystem.memory.weights[pattern.type] += learningRate;
-    } else {
-      MLSystem.memory.weights[pattern.type] = Math.max(0.1, MLSystem.memory.weights[pattern.type] - learningRate);
-    }
-    
-    // Track recent results
-    MLSystem.memory.recentResults.push(success);
-    if (MLSystem.memory.recentResults.length > 10) {
-      MLSystem.memory.recentResults.shift();
-    }
-  },
-
-  predict: (sequence) => {
-    const features = MLSystem.extractFeatures(sequence);
-    const weights = MLSystem.memory.weights;
-    
-    let bestType = 'unknown';
-    let bestConfidence = 0;
-    
-    Object.entries(weights).forEach(([type, weight]) => {
-      const confidence = weight * Math.random(); // Simplified prediction
-      if (confidence > bestConfidence) {
-        bestType = type;
-        bestConfidence = confidence;
+/**
+ * Creates an ML System instance with memoization and performance optimizations
+ */
+const createMLSystem = () => {
+  // Cache for expensive computations
+  const computationCache = new Map();
+  
+  // Clear cache entries older than 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, { timestamp }] of computationCache) {
+      if (now - timestamp > 300000) {
+        computationCache.delete(key);
       }
-    });
-    
-    return {
-      type: bestType,
-      confidence: bestConfidence
-    };
-  }
+    }
+  }, 60000);
+
+  return {
+    memory: {
+      patterns: [],
+      weights: Object.fromEntries(Object.values(PATTERN_TYPES).map(type => [type, 1.0])),
+      recentResults: [],
+      confidenceHistory: []
+    },
+
+    /**
+     * Extracts features from a number sequence
+     * @throws {Error} If sequence is invalid
+     */
+    extractFeatures(sequence) {
+      // Input validation
+      if (!Array.isArray(sequence) || sequence.length < 3) {
+        throw new Error('Sequence must contain at least 3 numbers');
+      }
+      if (!sequence.every(n => typeof n === 'number' && Number.isFinite(n))) {
+        throw new Error('Sequence must contain only valid numbers');
+      }
+
+      const cacheKey = sequence.join(',');
+      const cached = computationCache.get(cacheKey);
+      if (cached) return cached.features;
+
+      const features = {};
+      try {
+        // Statistical features
+        features.mean = sequence.reduce((a, b) => a + b, 0) / sequence.length;
+        features.variance = sequence.reduce((a, b) => 
+          a + Math.pow(b - features.mean, 2), 0) / sequence.length;
+
+        // Pattern detection
+        const differences = sequence.slice(1).map((n, i) => n - sequence[i]);
+        features.diffMean = differences.reduce((a, b) => a + b, 0) / differences.length;
+        
+        const tolerance = 0.0001;
+        features.isArithmetic = differences.every(d => Math.abs(d - differences[0]) < tolerance);
+        features.isGeometric = sequence.slice(1).every((n, i) => 
+          Math.abs(n / sequence[i] - sequence[1] / sequence[0]) < tolerance
+        );
+
+        computationCache.set(cacheKey, { features, timestamp: Date.now() });
+        return features;
+      } catch (error) {
+        throw new Error(`Feature extraction failed: ${error.message}`);
+      }
+    },
+
+    /**
+     * Predicts pattern and next value
+     * @throws {Error} If prediction fails
+     */
+    predict(sequence) {
+      try {
+        const features = this.extractFeatures(sequence);
+        const scores = {};
+
+        // Calculate confidence scores
+        Object.entries(this.memory.weights).forEach(([type, weight]) => {
+          let baseConfidence = 0.5;
+          
+          // Adjust confidence based on pattern indicators
+          if (features.isArithmetic && type === PATTERN_TYPES.ARITHMETIC) {
+            baseConfidence = 0.9;
+          } else if (features.isGeometric && type === PATTERN_TYPES.GEOMETRIC) {
+            baseConfidence = 0.9;
+          }
+
+          // Apply historical performance weighting
+          const successRate = this.getSuccessRate(type);
+          scores[type] = {
+            confidence: Math.min(1, baseConfidence * weight * (0.7 + 0.3 * successRate)),
+            weight
+          };
+        });
+
+        // Find best prediction
+        const bestPrediction = Object.entries(scores)
+          .reduce((best, [type, data]) => 
+            data.confidence > best.confidence ? { type, confidence: data.confidence } : best,
+            { type: 'unknown', confidence: 0 }
+          );
+
+        this.updateConfidenceHistory(bestPrediction.confidence);
+        return bestPrediction;
+      } catch (error) {
+        console.error('Prediction error:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Updates system with learning from results
+     * @throws {Error} If learning fails
+     */
+    learn(sequence, pattern, success) {
+      try {
+        const features = this.extractFeatures(sequence);
+        
+        // Store pattern
+        this.memory.patterns.push({
+          features,
+          pattern,
+          success,
+          timestamp: Date.now()
+        });
+
+        // Adaptive learning rate
+        const recentSuccess = this.memory.recentResults.slice(-5)
+          .filter(Boolean).length / 5;
+        const learningRate = 0.1 * (1 + (1 - recentSuccess));
+
+        // Update weights
+        if (success) {
+          this.memory.weights[pattern.type] += learningRate;
+          if (features.isArithmetic) {
+            this.memory.weights[PATTERN_TYPES.ARITHMETIC] += learningRate * 0.5;
+          }
+          if (features.isGeometric) {
+            this.memory.weights[PATTERN_TYPES.GEOMETRIC] += learningRate * 0.5;
+          }
+        } else {
+          this.memory.weights[pattern.type] = Math.max(0.1,
+            this.memory.weights[pattern.type] - learningRate * 0.5
+          );
+        }
+
+        // Normalize weights
+        const total = Object.values(this.memory.weights).reduce((a, b) => a + b, 0);
+        Object.keys(this.memory.weights).forEach(key => {
+          this.memory.weights[key] /= total;
+        });
+
+        // Update history
+        this.memory.recentResults.push(success);
+        if (this.memory.recentResults.length > 10) {
+          this.memory.recentResults.shift();
+        }
+      } catch (error) {
+        console.error('Learning error:', error);
+        throw error;
+      }
+    },
+
+    /**
+     * Calculates success rate for pattern type
+     * @private
+     */
+    getSuccessRate(patternType) {
+      const patterns = this.memory.patterns.filter(p => p.pattern.type === patternType);
+      if (patterns.length === 0) return 0.5;
+      return patterns.filter(p => p.success).length / patterns.length;
+    },
+
+    /**
+     * Updates confidence history
+     * @private
+     */
+    updateConfidenceHistory(confidence) {
+      this.memory.confidenceHistory.push({
+        confidence: Math.max(0, Math.min(1, confidence)),
+        timestamp: Date.now()
+      });
+      if (this.memory.confidenceHistory.length > 20) {
+        this.memory.confidenceHistory.shift();
+      }
+    },
+
+    /**
+     * Cleans up resources
+     */
+    cleanup() {
+      computationCache.clear();
+    }
+  };
 };
 
-const ChallengeEngine = ({ onComplete }) => {
-  const [currentChallenge, setCurrentChallenge] = useState(null);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [feedback, setFeedback] = useState(null);
-  const [attemptCount, setAttemptCount] = useState(0);
-  const [isAISolving, setIsAISolving] = useState(false);
-  const [aiThoughts, setAiThoughts] = useState([]);
+/**
+ * Custom hook for managing ML system
+ */
+const useMLSystem = () => {
+  const mlSystemRef = useRef(null);
+  
+  if (!mlSystemRef.current) {
+    mlSystemRef.current = createMLSystem();
+  }
 
-  const generateNewChallenge = () => {
-    const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
-    const nextNumber = sequence[sequence.length - 1] * 2;
-    
-    setCurrentChallenge({
-      type: challengeTypes.PATTERN,
-      data: {
-        sequence,
-        nextNumber,
-        pattern: { type: 'arithmetic' }
-      },
-      startTime: Date.now()
-    });
-    
-    setUserAnswer('');
-    setFeedback(null);
-    setAttemptCount(0);
-    setAiThoughts([]);
+  // Memoize system status
+  const systemStatus = useMemo(() => ({
+    weights: mlSystemRef.current.memory.weights,
+    recentResults: mlSystemRef.current.memory.recentResults,
+    successRate: mlSystemRef.current.memory.recentResults.filter(Boolean).length / 
+                Math.max(1, mlSystemRef.current.memory.recentResults.length),
+    confidenceHistory: mlSystemRef.current.memory.confidenceHistory
+  }), [mlSystemRef.current.memory.recentResults.length]);
+
+  // Cleanup on unmount
+  useEffect(() => () => mlSystemRef.current.cleanup(), []);
+
+  return {
+    mlSystem: mlSystemRef.current,
+    systemStatus
   };
+};
 
-  const handleAISolve = () => {
-    setIsAISolving(true);
-    setAiThoughts([]);
-    
-    const addThought = (thought) => {
-      setAiThoughts(prev => [...prev, thought]);
-    };
+/**
+ * Custom hook for managing challenges
+ */
+const useChallenge = (mlSystem, onComplete) => {
+  const [state, setState] = useState({
+    currentChallenge: null,
+    userAnswer: '',
+    feedback: null,
+    attemptCount: 0,
+    isAISolving: false,
+    aiThoughts: []
+  });
 
-    const sequence = currentChallenge.data.sequence;
-    
-    setTimeout(() => {
-      addThought("Analyzing sequence pattern...");
-      const prediction = MLSystem.predict(sequence);
+  const generateNewChallenge = useCallback(() => {
+    try {
+      const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
+      const nextNumber = sequence[sequence.length - 1] * 2;
       
-      setTimeout(() => {
-        addThought(`Detected ${prediction.type} pattern with ${(prediction.confidence * 100).toFixed(1)}% confidence`);
-        
-        setTimeout(() => {
-          const nextValue = sequence[sequence.length - 1] * 2;
-          addThought(`Predicting next value: ${nextValue.toFixed(2)}`);
-          setUserAnswer(nextValue.toFixed(2));
-          setIsAISolving(false);
-        }, 1000);
-      }, 1000);
-    }, 1000);
-  };
+      setState(prev => ({
+        ...prev,
+        currentChallenge: {
+          type: CHALLENGE_TYPES.PATTERN,
+          data: {
+            sequence,
+            nextNumber,
+            pattern: { type: PATTERN_TYPES.ARITHMETIC }
+          },
+          startTime: Date.now()
+        },
+        userAnswer: '',
+        feedback: null,
+        attemptCount: 0,
+        aiThoughts: []
+      }));
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        feedback: {
+          status: 'error',
+          message: 'Failed to generate challenge: ' + error.message
+        }
+      }));
+    }
+  }, []);
 
-  const submitAnswer = () => {
-    const isCorrect = Math.abs(Number(userAnswer) - currentChallenge.data.nextNumber) < 0.001;
-    
-    if (currentChallenge.type === challengeTypes.PATTERN) {
-      MLSystem.learn(
-        currentChallenge.data.sequence,
-        currentChallenge.data.pattern,
+  const handleAISolve = useCallback(async () => {
+    if (!state.currentChallenge || state.isAISolving) return;
+
+    setState(prev => ({ ...prev, isAISolving: true, aiThoughts: [] }));
+
+    try {
+      const addThought = (thought) => {
+        setState(prev => ({
+          ...prev,
+          aiThoughts: [...prev.aiThoughts, thought]
+        }));
+      };
+
+      addThought("Analyzing sequence pattern...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const prediction = mlSystem.predict(state.currentChallenge.data.sequence);
+      addThought(`Detected ${prediction.type} pattern with ${(prediction.confidence * 100).toFixed(1)}% confidence`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const nextValue = state.currentChallenge.data.sequence[
+        state.currentChallenge.data.sequence.length - 1
+      ] * 2;
+      addThought(`Predicting next value: ${nextValue.toFixed(2)}`);
+
+      setState(prev => ({
+        ...prev,
+        userAnswer: nextValue.toFixed(2),
+        isAISolving: false
+      }));
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isAISolving: false,
+        feedback: {
+          status: 'error',
+          message: 'AI analysis failed: ' + error.message
+        }
+      }));
+    }
+  }, [state.currentChallenge, state.isAISolving, mlSystem]);
+
+  const submitAnswer = useCallback(() => {
+    if (!state.currentChallenge) return;
+
+    try {
+      const numAnswer = Number(state.userAnswer);
+      if (!Number.isFinite(numAnswer)) {
+        throw new Error('Please enter a valid number');
+      }
+
+      const isCorrect = Math.abs(numAnswer - state.currentChallenge.data.nextNumber) < 0.001;
+      
+      mlSystem.learn(
+        state.currentChallenge.data.sequence,
+        state.currentChallenge.data.pattern,
         isCorrect
       );
+
+      const timeTaken = (Date.now() - state.currentChallenge.startTime) / 1000;
+      const newAttemptCount = state.attemptCount + 1;
+
+      setState(prev => ({
+        ...prev,
+        attemptCount: newAttemptCount,
+        feedback: isCorrect ? {
+          status: 'success',
+          message: `Correct! Score: ${Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10).toFixed(1)}`,
+          score: Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10)
+        } : {
+          status: 'error',
+          message: 'Not quite right. Try again!'
+        }
+      }));
+
+      if (isCorrect) {
+        onComplete?.(Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10));
+      }
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        feedback: {
+          status: 'error',
+          message: error.message
+        }
+      }));
     }
-    
-    const timeTaken = (Date.now() - currentChallenge.startTime) / 1000;
-    const newAttemptCount = attemptCount + 1;
-    setAttemptCount(newAttemptCount);
-    
-    if (isCorrect) {
-      const score = Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10);
-      setFeedback({
-        status: 'success',
-        message: `Correct! Score: ${score.toFixed(1)}`,
-        score
-      });
-      onComplete?.(score);
-    } else {
-      setFeedback({
-        status: 'error',
-        message: 'Not quite right. Try again!'
-      });
-    }
+  }, [state.currentChallenge, state.userAnswer, state.attemptCount, mlSystem, onComplete]);
+
+  return {
+    ...state,
+    setUserAnswer: (answer) => setState(prev => ({ ...prev, userAnswer: answer })),
+    generateNewChallenge,
+    handleAISolve,
+    submitAnswer
   };
+};
+
+/**
+ * Challenge Engine Component
+ */
+const ChallengeEngine = ({ onComplete }) => {
+  const { mlSystem, systemStatus } = useMLSystem();
+  const {
+    currentChallenge,
+    userAnswer,
+    setUserAnswer,
+    feedback,
+    isAISolving,
+    aiThoughts,
+    generateNewChallenge,
+    handleAISolve,
+    submitAnswer
+  } = useChallenge(mlSystem, onComplete);
 
   return (
     <Card className="w-full">
@@ -185,113 +892,348 @@ const ChallengeEngine = ({ onComplete }) => {
           <button
             onClick={generateNewChallenge}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            aria-label="Start new challenge"
           >
             Start New Challenge
           </button>
         ) : (
           <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-lg font-semibold mb-2">Pattern Challenge</h3>
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(currentChallenge.data.sequence, null, 2)}
-              </pre>
-            </div>
-            
-            <div className="flex gap-4">
-              <input
-                type="text"
-                value={userAnswer}
-                onChange={(e) => setUserAnswer(e.target.value)}
-                className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your answer..."
-              />
-              <button
-                onClick={submitAnswer}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-                disabled={isAISolving}
-              >
-                Submit
-              </button>
-              <button
-                onClick={handleAISolve}
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                disabled={isAISolving}
-              >
-                Let AI Solve
-              </button>
-            </div>
-            
-            {/* ML System Stats */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-6 h-6" />
-                  ML System Status
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Pattern Weights</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(MLSystem.memory.weights).map(([type, weight]) => (
-                        <div key={type} className="flex justify-between items-center">
-                          <span className="text-sm capitalize">{type}</span>
-                          <span className="text-sm font-medium">{weight.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-600 mb-2">Recent Performance</h4>
-                    <div className="flex gap-1">
-                      {MLSystem.memory.recentResults.map((success, i) => (
-                        <div
-                          key={i}
-                          className={`flex-1 h-2 rounded ${
-                            success ? 'bg-green-500' : 'bg-red-500'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
+            <div className="
+            <div className="flex items-center gap-3">
+              {challenge.success ? (
+                <Star className="w-5 h-5 text-yellow-500" />
+              ) : (
+                <Users className="w-5 h-5 text-red-500" />
+              )}
+              <div>
+                <div className="font-medium capitalize">{challenge.pattern.type} Pattern</div>
+                <div className="text-sm text-gray-500">
+                  {new Date(challenge.timestamp).toLocaleDateString()}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Thoughts */}
-            {aiThoughts.length > 0 && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-2">
-                <h4 className="font-medium text-gray-700">AI Thoughts:</h4>
-                {aiThoughts.map((thought, index) => (
-                  <div key={index} className="flex items-start gap-2">
-                    <Brain className="w-4 h-4 mt-1 text-blue-500" />
-                    <p className="text-sm text-gray-600">{thought}</p>
-                  </div>
-                ))}
               </div>
-            )}
-            
-            {/* Feedback */}
-            {feedback && (
-              <div className={`flex items-center gap-2 p-4 rounded-lg ${
-                feedback.status === 'success' ? 'bg-green-100' : 'bg-red-100'
-              }`}>
-                {feedback.status === 'success' ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-red-500" />
-                )}
-                <p className="text-sm">{feedback.message}</p>
+            </div>
+            <div className="text-right">
+              <div className="font-medium">{challenge.score} XP</div>
+              <div className="text-sm text-gray-500">
+                {challenge.success ? 'Success' : 'Failed'}
               </div>
-            )}
+            </div>
           </div>
-        )}
+        ))}
+      </div>
+    </div>
+
+    {/* Performance Metrics */}
+    <div className="grid grid-cols-2 gap-4">
+      <div className="p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm text-gray-500">Current Level</div>
+        <div className="text-xl font-bold mt-1 capitalize">{report.currentLevel}</div>
+        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500"
+            style={{ width: `${report.levelProgress * 100}%` }}
+          />
+        </div>
+      </div>
+      <div className="p-4 bg-gray-50 rounded-lg">
+        <div className="text-sm text-gray-500">Success Rate</div>
+        <div className="text-xl font-bold mt-1">
+          {(report.successRate * 100).toFixed(1)}%
+        </div>
+        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-green-500"
+            style={{ width: `${report.successRate * 100}%` }}
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* Pattern Performance */}
+    <div>
+      <h3 className="text-sm font-medium text-gray-600 mb-2">Pattern Performance</h3>
+      <div className="grid gap-2">
+        {Object.entries(report.patternPerformance || {}).map(([pattern, stats]) => (
+          <div key={pattern} className="p-3 bg-gray-50 rounded">
+            <div className="flex justify-between items-center mb-1">
+              <span className="font-medium capitalize">{pattern}</span>
+              <span className="text-sm text-gray-500">
+                {((stats.success / stats.total) * 100).toFixed(1)}% Success
+              </span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500"
+                style={{ width: `${(stats.success / stats.total) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </CardContent>
+</Card>;
+
+/**
+ * Performance Metrics Component for visualization
+ */
+const PerformanceMetrics = ({ data }) => {
+  const chartData = useMemo(() => ({
+    labels: data.map(d => new Date(d.timestamp).toLocaleDateString()),
+    datasets: [{
+      label: 'Score',
+      data: data.map(d => d.score),
+      borderColor: 'rgb(59, 130, 246)',
+      tension: 0.1
+    }]
+  }), [data]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LineChart className="w-6 h-6" />
+          Performance Trends
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="h-64 relative">
+          {/* Placeholder for chart visualization */}
+          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+            Performance visualization would go here
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
 };
 
-export default ChallengeEngine;
-```
+/**
+ * Learning Path Class for managing user's learning journey
+ */
+class LearningPath {
+  constructor(track) {
+    this.track = track;
+    this.level = 1;
+    this.experience = 0;
+    this.challenges = [];
+    this.completedChallenges = [];
+    this.patternPerformance = {};
+  }
+
+  updateProgress(result) {
+    this.experience += result.score;
+    this.completedChallenges.push(result);
+
+    // Update pattern performance
+    this.patternPerformance[result.pattern.type] = this.patternPerformance[result.pattern.type] || { success: 0, total: 0 };
+    this.patternPerformance[result.pattern.type].total++;
+    if (result.success) this.patternPerformance[result.pattern.type].success++;
+
+    // Level up logic (example)
+    if (this.experience >= this.level * 1000) {
+      this.level++;
+      this.experience -= this.level * 1000;
+    }
+  }
+
+  getNextChallenge() {
+    // Simple challenge generation for this example
+    const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
+    const nextNumber = sequence[sequence.length - 1] * 2;
+    
+    return {
+      type: CHALLENGE_TYPES.PATTERN,
+      data: {
+        sequence,
+        nextNumber,
+        pattern: { type: PATTERN_TYPES.ARITHMETIC }
+      },
+      startTime: Date.now()
+    };
+  }
+
+  getProgressReport() {
+    const successRate = this.completedChallenges.filter(c => c.success).length / this.completedChallenges.length || 0;
+    return {
+      currentLevel: `Level ${this.level}`,
+      experiencePoints: this.experience,
+      levelProgress: this.experience / (this.level * 1000),
+      successRate,
+      challengesCompleted: this.completedChallenges.length,
+      recentHistory: this.completedChallenges.slice(-5),
+      patternPerformance: this.patternPerformance,
+      recommendations: this.getRecommendations()
+    };
+  }
+
+  getRecommendations() {
+    // Example recommendations based on performance
+    return Object.entries(this.patternPerformance)
+      .filter(([_, stats]) => stats.success / stats.total < 0.7)
+      .map(([pattern]) => `Improve your skills in ${pattern} patterns`);
+  }
+}
+
+// Constants for learning tracks
+const LEARNING_TRACKS = {
+  PATTERN_RECOGNITION: 'PATTERN_RECOGNITION'
+};
+
+/**
+ * Main Training Environment Component
+ */
+const TrainingEnvironment = () => {
+  const [learningPath] = useState(() => new LearningPath(LEARNING_TRACKS.PATTERN_RECOGNITION));
+  const [activeChallenge, setActiveChallenge] = useState(null);
+  const [showProgress, setShowProgress] = useState(false);
+
+  const progressReport = useMemo(() => 
+    learningPath.getProgressReport(),
+    [learningPath, activeChallenge]
+  );
+
+  const handleChallengeComplete = useCallback((result) => {
+    learningPath.updateProgress(result);
+    setActiveChallenge(null);
+  }, [learningPath]);
+
+  const startNewChallenge = useCallback(() => {
+    setActiveChallenge(learningPath.getNextChallenge());
+    setShowProgress(false);
+  }, [learningPath]);
+
+  return (
+    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
+      {/* Header and controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Brain className="w-8 h-8 text-blue-500" />
+              <span>AI Training Environment</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowProgress(true)}
+                className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+              >
+                View Progress
+              </button>
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded">
+                <Trophy className="w-5 h-5 text-yellow-500" />
+                <span className="font-medium">{progressReport.experiencePoints} XP</span>
+              </div>
+            </div>
+          </CardTitle>
+        </CardHeader>
+      </Card>
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Learning Path & Progress */}
+        <Card className="lg:col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Map className="w-6 h-6" />
+              Learning Path
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Current Track</h3>
+              <p className="text-lg font-semibold capitalize">
+                {learningPath.track.replace('_', ' ')}
+              </p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Level</h3>
+              <p className="text-lg font-semibold capitalize">
+                {progressReport.currentLevel}
+              </p>
+              <div className="mt-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${progressReport.levelProgress * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-medium text-gray-600">Recent Performance</h3>
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <div>
+                  <div className="text-sm text-gray-500">Success Rate</div>
+                  <div className="text-xl font-bold text-blue-600">
+                    {(progressReport.successRate * 100).toFixed(1)}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Challenges</div>
+                  <div className="text-xl font-bold text-green-600">
+                    {progressReport.challengesCompleted}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {progressReport.recommendations.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-600">Recommendations</h3>
+                <ul className="mt-2 space-y-2">
+                  {progressReport.recommendations.map((rec, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <Book className="w-4 h-4 mt-0.5 text-blue-500" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!activeChallenge && (
+              <button
+                onClick={startNewChallenge}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors mt-4"
+              >
+                Start Next Challenge
+              </button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Challenge Area */}
+        <div className="lg:col-span-2">
+          {activeChallenge ? (
+            <ChallengeEngine
+              challenge={activeChallenge}
+              onComplete={handleChallengeComplete}
+            />
+          ) : showProgress ? (
+            <ProgressDetails report={progressReport} />
+          ) : (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <Target className="w-16 h-16 text-blue-500" />
+                  <h2 className="text-xl font-semibold">Ready for Your Next Challenge?</h2>
+                  <p className="text-gray-600 max-w-md">
+                    Start a new challenge to continue your learning journey and improve your AI capabilities.
+                  </p>
+                  <button
+                    onClick={startNewChallenge}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Start Challenge
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TrainingEnvironment;
