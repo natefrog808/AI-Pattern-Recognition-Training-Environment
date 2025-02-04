@@ -1,571 +1,242 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Brain, Trophy, Users, LineChart, Star, Target, AlertCircle, CheckCircle2, Loader, Book, Map } from 'lucide-react';
-
-// Constants
-const CHALLENGE_TYPES = {
-  PATTERN: 'pattern',
-  OPTIMIZATION: 'optimization'
-} as const;
-
-const PATTERN_TYPES = {
-  ARITHMETIC: 'arithmetic',
-  GEOMETRIC: 'geometric',
-  QUADRATIC: 'quadratic',
-  EXPONENTIAL: 'exponential'
-} as const;
-
-const LEARNING_TRACKS = {
-  PATTERN_RECOGNITION: 'PATTERN_RECOGNITION'
-};
-
-// LearningPath Class for managing user's learning journey
-class LearningPath {
-  constructor(track) {
-    this.track = track;
-    this.level = 1;
-    this.experience = 0;
-    this.challenges = [];
-    this.completedChallenges = [];
-    this.patternPerformance = {};
-  }
-
-  updateProgress(result) {
-    this.experience += result.score;
-    this.completedChallenges.push({
-      ...result,
-      timestamp: Date.now(),
-      pattern: result.pattern,
-      success: result.success,
-      score: result.score
-    });
-
-    // Update pattern performance
-    this.patternPerformance[result.pattern.type] = this.patternPerformance[result.pattern.type] || { success: 0, total: 0 };
-    this.patternPerformance[result.pattern.type].total++;
-    if (result.success) this.patternPerformance[result.pattern.type].success++;
-
-    // Level up logic
-    const levelThreshold = this.level * 1000;
-    if (this.experience >= levelThreshold) {
-      this.level++;
-      this.experience -= levelThreshold;
-    }
-  }
-
-  getNextChallenge() {
-    // This method is now handled by useChallenge hook's generateNewChallenge
-    return null; // Placeholder
-  }
-
-  getProgressReport() {
-    const successRate = this.completedChallenges.filter(c => c.success).length / (this.completedChallenges.length || 1);
-    return {
-      currentLevel: `Level ${this.level}`,
-      experiencePoints: this.experience,
-      levelProgress: this.experience / (this.level * 1000),
-      successRate,
-      challengesCompleted: this.completedChallenges.length,
-      recentHistory: this.completedChallenges.slice(-5),
-      patternPerformance: this.patternPerformance,
-      recommendations: this.getRecommendations()
-    };
-  }
-
-  getRecommendations() {
-    return Object.entries(this.patternPerformance)
-      .filter(([_, stats]) => stats.success / stats.total < 0.7)
-      .map(([pattern]) => `Improve your skills in ${pattern} patterns`);
-  }
+npx create-next-app@latest my-app
+cd my-app
+// pages/api/hello.js
+export default function handler(req, res) {
+  res.status(200).json({ text: 'Hello' });
 }
+NEXT_PUBLIC_API_KEY=your_api_key_here
+DB_URL=your_db_connection_string
+import React, { useState, useMemo, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { 
+  Brain, Trophy, Users, LineChart, Star, Target, Book, Map, 
+  AlertCircle, CheckCircle2, Loader 
+} from 'lucide-react';
+import LearningPath from '../classes/LearningPath';
+import MLSystem from '../classes/MLSystem';
+import { LEARNING_TRACKS, PATTERN_TYPES } from '../types/types';
+import ProgressView from './ProgressView';
 
-// ML System for pattern detection
-const createMLSystem = () => {
-  // Cache for expensive computations
-  const computationCache = new Map();
-  
-  // Clear cache entries older than 5 minutes
-  setInterval(() => {
-    const now = Date.now();
-    for (const [key, { timestamp }] of computationCache) {
-      if (now - timestamp > 300000) {
-        computationCache.delete(key);
-      }
-    }
-  }, 60000);
+const TrainingEnvironment = () => {
+  // State
+  const [learningPath] = useState(() => new LearningPath(LEARNING_TRACKS.PATTERN_RECOGNITION));
+  const [mlSystem] = useState(() => new MLSystem());
+  const [showProgress, setShowProgress] = useState(false);
+  const [currentChallenge, setCurrentChallenge] = useState(null);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [aiThoughts, setAiThoughts] = useState([]);
+  const [isAISolving, setIsAISolving] = useState(false);
 
-  return {
-    memory: {
-      patterns: [],
-      weights: Object.fromEntries(Object.values(PATTERN_TYPES).map(type => [type, 1.0])),
-      recentResults: [],
-      confidenceHistory: []
-    },
+  // Computed values
+  const progressReport = useMemo(() => 
+    learningPath.getProgressReport(), 
+    [learningPath, currentChallenge]
+  );
 
-    extractFeatures(sequence) {
-      if (!Array.isArray(sequence) || sequence.length < 3) {
-        throw new Error('Sequence must contain at least 3 numbers');
-      }
-      if (!sequence.every(n => typeof n === 'number' && Number.isFinite(n))) {
-        throw new Error('Sequence must contain only valid numbers');
-      }
-
-      const cacheKey = sequence.join(',');
-      const cached = computationCache.get(cacheKey);
-      if (cached) return cached.features;
-
-      const features = {};
-      try {
-        features.mean = sequence.reduce((a, b) => a + b, 0) / sequence.length;
-        features.variance = sequence.reduce((a, b) => 
-          a + Math.pow(b - features.mean, 2), 0) / sequence.length;
-
-        const differences = sequence.slice(1).map((n, i) => n - sequence[i]);
-        features.diffMean = differences.reduce((a, b) => a + b, 0) / differences.length;
-        
-        const tolerance = 0.0001;
-        features.isArithmetic = differences.every(d => Math.abs(d - differences[0]) < tolerance);
-        features.isGeometric = sequence.slice(1).every((n, i) => 
-          Math.abs(n / sequence[i] - sequence[1] / sequence[0]) < tolerance
-        );
-
-        // Quadratic feature
-        const diffOfDiffs = differences.slice(1).map((d, i) => d - differences[i]);
-        features.isQuadratic = diffOfDiffs.every(dd => Math.abs(dd - diffOfDiffs[0]) < tolerance);
-
-        // Exponential feature
-        const ratios = sequence.slice(1).map((n, i) => n / sequence[i]);
-        const ratiosOfRatios = ratios.slice(1).map((r, i) => r / ratios[i]);
-        features.isExponential = ratiosOfRatios.every(rr => Math.abs(rr - ratiosOfRatios[0]) < tolerance);
-
-        computationCache.set(cacheKey, { features, timestamp: Date.now() });
-        return features;
-      } catch (error) {
-        throw new Error(`Feature extraction failed: ${error.message}`);
-      }
-    },
-
-    predict(sequence) {
-      try {
-        const features = this.extractFeatures(sequence);
-        const scores = {};
-
-        Object.entries(this.memory.weights).forEach(([type, weight]) => {
-          let baseConfidence = 0.5;
-          
-          if (features.isArithmetic && type === PATTERN_TYPES.ARITHMETIC) {
-            baseConfidence = 0.9;
-          } else if (features.isGeometric && type === PATTERN_TYPES.GEOMETRIC) {
-            baseConfidence = 0.9;
-          } else if (features.isQuadratic && type === PATTERN_TYPES.QUADRATIC) {
-            baseConfidence = 0.9;
-          } else if (features.isExponential && type === PATTERN_TYPES.EXPONENTIAL) {
-            baseConfidence = 0.9;
-          }
-
-          const successRate = this.getSuccessRate(type);
-          scores[type] = {
-            confidence: Math.min(1, baseConfidence * weight * (0.7 + 0.3 * successRate)),
-            weight
-          };
-        });
-
-        const bestPrediction = Object.entries(scores)
-          .reduce((best, [type, data]) => 
-            data.confidence > best.confidence ? { type, confidence: data.confidence } : best,
-            { type: 'unknown', confidence: 0 }
-          );
-
-        this.updateConfidenceHistory(bestPrediction.confidence);
-        return bestPrediction;
-      } catch (error) {
-        console.error('Prediction error:', error);
-        throw error;
-      }
-    },
-
-    learn(sequence, pattern, success) {
-      try {
-        const features = this.extractFeatures(sequence);
-        
-        this.memory.patterns.push({
-          features,
-          pattern,
-          success,
-          timestamp: Date.now()
-        });
-
-        const recentSuccess = this.memory.recentResults.slice(-5)
-          .filter(Boolean).length / 5;
-        const learningRate = 0.1 * (1 + (1 - recentSuccess));
-
-        if (success) {
-          this.memory.weights[pattern.type] += learningRate;
-          if (features.isArithmetic) {
-            this.memory.weights[PATTERN_TYPES.ARITHMETIC] += learningRate * 0.5;
-          }
-          if (features.isGeometric) {
-            this.memory.weights[PATTERN_TYPES.GEOMETRIC] += learningRate * 0.5;
-          }
-          if (features.isQuadratic) {
-            this.memory.weights[PATTERN_TYPES.QUADRATIC] += learningRate * 0.5;
-          }
-          if (features.isExponential) {
-            this.memory.weights[PATTERN_TYPES.EXPONENTIAL] += learningRate * 0.5;
-          }
-        } else {
-          this.memory.weights[pattern.type] = Math.max(0.1,
-            this.memory.weights[pattern.type] - learningRate * 0.5
-          );
-        }
-
-        const total = Object.values(this.memory.weights).reduce((a, b) => a + b, 0);
-        Object.keys(this.memory.weights).forEach(key => {
-          this.memory.weights[key] /= total;
-        });
-
-        this.memory.recentResults.push(success);
-        if (this.memory.recentResults.length > 10) {
-          this.memory.recentResults.shift();
-        }
-      } catch (error) {
-        console.error('Learning error:', error);
-        throw error;
-      }
-    },
-
-    getSuccessRate(patternType) {
-      const patterns = this.memory.patterns.filter(p => p.pattern.type === patternType);
-      if (patterns.length === 0) return 0.5;
-      return patterns.filter(p => p.success).length / patterns.length;
-    },
-
-    updateConfidenceHistory(confidence) {
-      this.memory.confidenceHistory.push({
-        confidence: Math.max(0, Math.min(1, confidence)),
-        timestamp: Date.now()
-      });
-      if (this.memory.confidenceHistory.length > 20) {
-        this.memory.confidenceHistory.shift();
-      }
-    },
-
-    cleanup() {
-      computationCache.clear();
-    }
-  };
-};
-
-// Custom hook for managing ML system
-const useMLSystem = () => {
-  const mlSystemRef = useRef(null);
-  
-  if (!mlSystemRef.current) {
-    mlSystemRef.current = createMLSystem();
-  }
-
-  const systemStatus = useMemo(() => ({
-    weights: mlSystemRef.current.memory.weights,
-    recentResults: mlSystemRef.current.memory.recentResults,
-    successRate: mlSystemRef.current.memory.recentResults.filter(Boolean).length / 
-                Math.max(1, mlSystemRef.current.memory.recentResults.length),
-    confidenceHistory: mlSystemRef.current.memory.confidenceHistory
-  }), [mlSystemRef.current.memory.recentResults.length]);
-
-  useEffect(() => () => mlSystemRef.current.cleanup(), []);
-
-  return {
-    mlSystem: mlSystemRef.current,
-    systemStatus
-  };
-};
-
-// Custom hook for managing challenges
-const useChallenge = (mlSystem, onComplete) => {
-  const [state, setState] = useState({
-    currentChallenge: null,
-    userAnswer: '',
-    feedback: null,
-    attemptCount: 0,
-    isAISolving: false,
-    aiThoughts: []
-  });
-
-  const generateNewChallenge = useCallback(() => {
-    try {
-      const challengeTypes = [PATTERN_TYPES.ARITHMETIC, PATTERN_TYPES.GEOMETRIC, PATTERN_TYPES.QUADRATIC, PATTERN_TYPES.EXPONENTIAL];
-      const weights = Object.entries(mlSystem.memory.weights);
-      const totalWeight = weights.reduce((sum, [, weight]) => sum + weight, 0);
-      const randomValue = Math.random() * totalWeight;
-      let cumulativeWeight = 0;
-      let randomType = PATTERN_TYPES.ARITHMETIC; // Default
-
-      for (const [type, weight] of weights) {
-        cumulativeWeight += weight;
-        if (randomValue < cumulativeWeight) {
-          randomType = type;
-          break;
-        }
-      }
-
-      let sequence;
-      let nextNumber;
-
-      switch (randomType) {
-        case PATTERN_TYPES.ARITHMETIC:
-          const start = Math.floor(Math.random() * 10);
-          const diff = Math.floor(Math.random() * 5) + 1;
-          sequence = Array.from({ length: 5 }, (_, i) => start + i * diff);
-          nextNumber = start + 5 * diff;
-          break;
-        case PATTERN_TYPES.GEOMETRIC:
-          const a = Math.floor(Math.random() * 5) + 1;
-          const r = Math.floor(Math.random() * 3) + 1;
-          sequence = Array.from({ length: 5 }, (_, i) => a * Math.pow(r, i));
-          nextNumber = a * Math.pow(r, 5);
-          break;
-        case PATTERN_TYPES.QUADRATIC:
-          const aQuad = Math.floor(Math.random() * 5) + 1;
-          const bQuad = Math.floor(Math.random() * 5) + 1;
-          const cQuad = Math.floor(Math.random() * 5) + 1;
-          sequence = Array.from({ length: 5 }, (_, i) => aQuad * i * i + bQuad * i + cQuad);
-          nextNumber = aQuad * 25 + bQuad * 5 + cQuad;
-          break;
-        case PATTERN_TYPES.EXPONENTIAL:
-          const aExp = Math.floor(Math.random() * 5) + 1;
-          const bExp = Math.floor(Math.random() * 3) + 1;
-          sequence = Array.from({ length: 5 }, (_, i) => aExp * Math.pow(bExp, i));
-          nextNumber = aExp * Math.pow(bExp, 5);
-          break;
-        default:
-          console.warn("Unknown Pattern Type. Defaulting to Arithmetic");
-          const startDef = Math.floor(Math.random() * 10);
-          const diffDef = Math.floor(Math.random() * 5) + 1;
-          sequence = Array.from({ length: 5 }, (_, i) => startDef + i * diffDef);
-          nextNumber = startDef + 5 * diffDef;
-          randomType = PATTERN_TYPES.ARITHMETIC;
-          break;
-      }
-
-      setState(prev => ({
-        ...prev,
-        currentChallenge: {
-          type: CHALLENGE_TYPES.PATTERN,
-          data: {
-            sequence,
-            nextNumber,
-            pattern: { type: randomType }
-          },
-          startTime: Date.now()
-        },
-        userAnswer: '',
-        feedback: null,
-        attemptCount: 0,
-        aiThoughts: []
-      }));
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        feedback: {
-          status: 'error',
-          message: 'Failed to generate challenge: ' + error.message
-        }
-      }));
-    }
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      mlSystem.cleanup();
+    };
   }, [mlSystem]);
 
-  const handleAISolve = useCallback(async () => {
-    if (!state.currentChallenge || state.isAISolving) return;
+  // Helper functions
+  const handleChallengeComplete = (result) => {
+    learningPath.updateProgress({
+      ...result,
+      success: true,
+      pattern: currentChallenge?.data?.pattern || { type: 'unknown' }
+    });
+    setCurrentChallenge(null);
+    setUserAnswer('');
+    setFeedback({
+      status: 'success',
+      message: `Challenge completed! Earned ${result.score} XP`
+    });
+  };
 
-    setState(prev => ({ ...prev, isAISolving: true, aiThoughts: [] }));
+  const generateNewChallenge = () => {
+    const challenge = learningPath.generateChallenge();
+    setCurrentChallenge(challenge);
+    setUserAnswer('');
+    setFeedback(null);
+    setAiThoughts([]);
+  };
 
+  const handleAISolve = async () => {
+    if (!currentChallenge || isAISolving) return;
+
+    setIsAISolving(true);
+    setAiThoughts([]);
+    
     try {
-      const addThought = (thought) => {
-        setState(prev => ({
-          ...prev,
-          aiThoughts: [...prev.aiThoughts, thought]
-        }));
-      };
-
-      addThought("Analyzing sequence pattern...");
+      setAiThoughts(prev => [...prev, "Analyzing sequence pattern..."]);
       await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const prediction = mlSystem.predict(state.currentChallenge.data.sequence);
-      addThought(`Detected ${prediction.type} pattern with ${(prediction.confidence * 100).toFixed(1)}% confidence`);
+      
+      const prediction = mlSystem.predict(currentChallenge.data.sequence);
+      setAiThoughts(prev => [...prev, 
+        `Detected ${prediction.type} pattern with ${(prediction.confidence * 100).toFixed(1)}% confidence`
+      ]);
       await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const nextValue = state.currentChallenge.data.sequence[
-        state.currentChallenge.data.sequence.length - 1
-      ] * 2;
-      addThought(`Predicting next value: ${nextValue.toFixed(2)}`);
-
-      setState(prev => ({
-        ...prev,
-        userAnswer: nextValue.toFixed(2),
-        isAISolving: false
-      }));
+      
+      const nextValue = currentChallenge.data.sequence[currentChallenge.data.sequence.length - 1] * 2;
+      setAiThoughts(prev => [...prev, `Predicted next value: ${nextValue.toFixed(2)}`]);
+      setUserAnswer(nextValue.toFixed(2));
     } catch (error) {
-      setState(prev => ({
-        ...prev,
-        isAISolving: false,
-        feedback: {
-          status: 'error',
-          message: 'AI analysis failed: ' + error.message
-        }
-      }));
+      setFeedback({
+        status: 'error',
+        message: 'AI solving failed: ' + error.message
+      });
+    } finally {
+      setIsAISolving(false);
     }
-  }, [state.currentChallenge, state.isAISolving, mlSystem]);
+  };
 
-  const submitAnswer = useCallback(() => {
-    if (!state.currentChallenge) return;
+  const submitAnswer = () => {
+    if (!currentChallenge) return;
 
     try {
-      const numAnswer = Number(state.userAnswer);
+      const numAnswer = Number(userAnswer);
       if (!Number.isFinite(numAnswer)) {
         throw new Error('Please enter a valid number');
       }
 
-      const isCorrect = Math.abs(numAnswer - state.currentChallenge.data.nextNumber) < 0.001;
+      const isCorrect = Math.abs(numAnswer - currentChallenge.data.nextNumber) < 0.001;
       
       mlSystem.learn(
-        state.currentChallenge.data.sequence,
-        state.currentChallenge.data.pattern,
+        currentChallenge.data.sequence,
+        currentChallenge.data.pattern,
         isCorrect
       );
 
-      const timeTaken = (Date.now() - state.currentChallenge.startTime) / 1000;
-      const newAttemptCount = state.attemptCount + 1;
-
-      setState(prev => ({
-        ...prev,
-        attemptCount: newAttemptCount,
-        feedback: isCorrect ? {
-          status: 'success',
-          message: `Correct! Score: ${Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10).toFixed(1)}`,
-          score: Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10)
-        } : {
+      if (isCorrect) {
+        const timeTaken = (Date.now() - currentChallenge.startTime) / 1000;
+        const score = Math.max(0, 100 - timeTaken / 10);
+        handleChallengeComplete({ score });
+      } else {
+        setFeedback({
           status: 'error',
           message: 'Not quite right. Try again!'
-        }
-      }));
-
-      if (isCorrect) {
-        onComplete?.(Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10));
+        });
       }
     } catch (error) {
-      setState(prev => ({
-        ...prev,
-        feedback: {
-          status: 'error',
-          message: error.message
-        }
-      }));
+      setFeedback({
+        status: 'error',
+        message: error.message
+      });
     }
-  }, [state.currentChallenge, state.userAnswer, state.attemptCount, mlSystem, onComplete]);
-
-  return {
-    ...state,
-    setUserAnswer: (answer) => setState(prev => ({ ...prev, userAnswer: answer })),
-    generateNewChallenge,
-    handleAISolve,
-    submitAnswer
   };
-};
-
-// PerformanceMetrics Component
-const PerformanceMetrics = ({ data }) => {
-  const chartData = useMemo(() => ({
-    labels: data.map(d => new Date(d.timestamp).toLocaleDateString()),
-    datasets: [{
-      label: 'Score',
-      data: data.map(d => d.score),
-      borderColor: 'rgb(59, 130, 246)',
-      tension: 0.1
-    }]
-  }), [data]);
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <LineChart className="w-6 h-6" aria-hidden="true" />
-          Performance Trends
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Brain className="w-8 h-8 text-blue-500" />
+            <span>AI Training Environment</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowProgress(!showProgress)}
+              className="px-4 py-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+            >
+              {showProgress ? 'Return to Training' : 'View Progress'}
+            </button>
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded">
+              <Trophy className="w-5 h-5 text-yellow-500" />
+              <span className="font-medium">{progressReport.experiencePoints} XP</span>
+            </div>
+          </div>
         </CardTitle>
       </CardHeader>
+
       <CardContent>
-        <div className="h-64 relative">
-          {/* Placeholder for chart visualization */}
-          <div className="absolute inset-0 flex items-center justify-center text-gray-500">
-            Performance visualization would go here
-          </div>
+        <div className="space-y-6">
+          {/* Challenge Area */}
+          {currentChallenge && !showProgress && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <h3 className="text-lg font-semibold mb-2">Pattern Challenge</h3>
+                <pre className="whitespace-pre-wrap">
+                  {JSON.stringify(currentChallenge.data.sequence, null, 2)}
+                </pre>
+              </div>
+
+              <div className="flex gap-4">
+                <input
+                  type="text"
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                  className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your answer..."
+                  disabled={isAISolving}
+                />
+                <button
+                  onClick={submitAnswer}
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                  disabled={isAISolving}
+                >
+                  Submit
+                </button>
+                <button
+                  onClick={handleAISolve}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center gap-2"
+                  disabled={isAISolving}
+                >
+                  {isAISolving && <Loader className="w-4 h-4 animate-spin" />}
+                  Let AI Solve
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* AI Analysis */}
+          {aiThoughts.length > 0 && (
+            <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+              <h4 className="font-medium text-gray-700">AI Analysis:</h4>
+              {aiThoughts.map((thought, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <Brain className="w-4 h-4 mt-1 text-blue-500" />
+                  <p className="text-sm text-gray-600">{thought}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Feedback */}
+          {feedback && (
+            <div className={`flex items-center gap-2 p-4 rounded-lg ${
+              feedback.status === 'success' ? 'bg-green-100' : 'bg-red-100'
+            }`}>
+              {feedback.status === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              ) : (
+                <AlertCircle className="w-5 h-5 text-red-500" />
+              )}
+              <p className="text-sm">{feedback.message}</p>
+            </div>
+          )}
+
+          {/* Progress View or Start Button */}
+          {!currentChallenge && !showProgress ? (
+            <div className="text-center py-8">
+              <button
+                onClick={generateNewChallenge}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                Start New Challenge
+              </button>
+            </div>
+          ) : (
+            <ProgressView progressReport={progressReport} />
+          )}
         </div>
       </CardContent>
     </Card>
   );
 };
 
-// ProgressDetails Component
-const ProgressDetails = ({ report }) => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2">
-        <LineChart className="w-6 h-6" aria-hidden="true" />
-        Detailed Progress
-      </CardTitle>
-    </CardHeader>
-    <CardContent className="space-y-6">
-      {/* Experience Progress */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-600 mb-2">Experience Growth</h3>
-        <div className="h-32 bg-gray-50 rounded-lg p-4">
-          {/* Add a chart here showing XP over time */}
-        </div>
-      </div>
+export default TrainingEnvironment;
 
-      {/* Recent History */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-600 mb-2">Recent Challenges</h3>
-        <div className="space-y-2">
-          {report.recentHistory.map((challenge, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between p-2 bg-gray-50 rounded"
-            >
-              <div className="flex items-center gap-3">
-                {challenge.success ? (
-                  <Star className="w-5 h-5 text-yellow-500" aria-hidden="true" />
-                ) : (
-                  <Users className="w-5 h-5 text-red-500" aria-hidden="true" />
-                )}
-                <div>
-                  <div className="font-medium capitalize">{challenge.pattern.type} Pattern</div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(challenge.timestamp).toLocaleDateString()}
-                  </div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="font-medium">{challenge.score} XP</div>
-                <div className="text-sm text-gray-500">
-                  {challenge.success ? 'Success' : 'Failed'}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Performance Metrics */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <div className="text-sm text-gray-500">Current Level</div>
-          <div className="text-xl font-bold mt-1 capitalize">{report.currentLevel}</div>
-          <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-blue-500"
-              style={{ width: `${report.levelProgress * 100}%` }}
-              role="progressbar"
-              aria-valuenow={report.levelProgress * 100}
-              aria-valuemin={0}
-              aria-val
-       
