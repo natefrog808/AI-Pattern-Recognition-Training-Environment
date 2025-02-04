@@ -15,12 +15,11 @@ const PATTERN_TYPES = {
   EXPONENTIAL: 'exponential'
 } as const;
 
-// Constants for learning tracks
 const LEARNING_TRACKS = {
   PATTERN_RECOGNITION: 'PATTERN_RECOGNITION'
 };
 
-// Learning Path Class for managing user's learning journey
+// LearningPath Class for managing user's learning journey
 class LearningPath {
   constructor(track) {
     this.track = track;
@@ -55,19 +54,8 @@ class LearningPath {
   }
 
   getNextChallenge() {
-    // Generate a new challenge
-    const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
-    const nextNumber = sequence[sequence.length - 1] * 2;
-    
-    return {
-      type: CHALLENGE_TYPES.PATTERN,
-      data: {
-        sequence,
-        nextNumber,
-        pattern: { type: PATTERN_TYPES.ARITHMETIC }
-      },
-      startTime: Date.now()
-    };
+    // This method is now handled by useChallenge hook's generateNewChallenge
+    return null; // Placeholder
   }
 
   getProgressReport() {
@@ -91,7 +79,7 @@ class LearningPath {
   }
 }
 
-// ML System
+// ML System for pattern detection
 const createMLSystem = () => {
   // Cache for expensive computations
   const computationCache = new Map();
@@ -114,12 +102,7 @@ const createMLSystem = () => {
       confidenceHistory: []
     },
 
-    /**
-     * Extracts features from a number sequence
-     * @throws {Error} If sequence is invalid
-     */
     extractFeatures(sequence) {
-      // Input validation
       if (!Array.isArray(sequence) || sequence.length < 3) {
         throw new Error('Sequence must contain at least 3 numbers');
       }
@@ -133,12 +116,10 @@ const createMLSystem = () => {
 
       const features = {};
       try {
-        // Statistical features
         features.mean = sequence.reduce((a, b) => a + b, 0) / sequence.length;
         features.variance = sequence.reduce((a, b) => 
           a + Math.pow(b - features.mean, 2), 0) / sequence.length;
 
-        // Pattern detection
         const differences = sequence.slice(1).map((n, i) => n - sequence[i]);
         features.diffMean = differences.reduce((a, b) => a + b, 0) / differences.length;
         
@@ -148,6 +129,15 @@ const createMLSystem = () => {
           Math.abs(n / sequence[i] - sequence[1] / sequence[0]) < tolerance
         );
 
+        // Quadratic feature
+        const diffOfDiffs = differences.slice(1).map((d, i) => d - differences[i]);
+        features.isQuadratic = diffOfDiffs.every(dd => Math.abs(dd - diffOfDiffs[0]) < tolerance);
+
+        // Exponential feature
+        const ratios = sequence.slice(1).map((n, i) => n / sequence[i]);
+        const ratiosOfRatios = ratios.slice(1).map((r, i) => r / ratios[i]);
+        features.isExponential = ratiosOfRatios.every(rr => Math.abs(rr - ratiosOfRatios[0]) < tolerance);
+
         computationCache.set(cacheKey, { features, timestamp: Date.now() });
         return features;
       } catch (error) {
@@ -155,27 +145,24 @@ const createMLSystem = () => {
       }
     },
 
-    /**
-     * Predicts pattern and next value
-     * @throws {Error} If prediction fails
-     */
     predict(sequence) {
       try {
         const features = this.extractFeatures(sequence);
         const scores = {};
 
-        // Calculate confidence scores
         Object.entries(this.memory.weights).forEach(([type, weight]) => {
           let baseConfidence = 0.5;
           
-          // Adjust confidence based on pattern indicators
           if (features.isArithmetic && type === PATTERN_TYPES.ARITHMETIC) {
             baseConfidence = 0.9;
           } else if (features.isGeometric && type === PATTERN_TYPES.GEOMETRIC) {
             baseConfidence = 0.9;
+          } else if (features.isQuadratic && type === PATTERN_TYPES.QUADRATIC) {
+            baseConfidence = 0.9;
+          } else if (features.isExponential && type === PATTERN_TYPES.EXPONENTIAL) {
+            baseConfidence = 0.9;
           }
 
-          // Apply historical performance weighting
           const successRate = this.getSuccessRate(type);
           scores[type] = {
             confidence: Math.min(1, baseConfidence * weight * (0.7 + 0.3 * successRate)),
@@ -183,7 +170,6 @@ const createMLSystem = () => {
           };
         });
 
-        // Find best prediction
         const bestPrediction = Object.entries(scores)
           .reduce((best, [type, data]) => 
             data.confidence > best.confidence ? { type, confidence: data.confidence } : best,
@@ -198,15 +184,10 @@ const createMLSystem = () => {
       }
     },
 
-    /**
-     * Updates system with learning from results
-     * @throws {Error} If learning fails
-     */
     learn(sequence, pattern, success) {
       try {
         const features = this.extractFeatures(sequence);
         
-        // Store pattern
         this.memory.patterns.push({
           features,
           pattern,
@@ -214,12 +195,10 @@ const createMLSystem = () => {
           timestamp: Date.now()
         });
 
-        // Adaptive learning rate
         const recentSuccess = this.memory.recentResults.slice(-5)
           .filter(Boolean).length / 5;
         const learningRate = 0.1 * (1 + (1 - recentSuccess));
 
-        // Update weights
         if (success) {
           this.memory.weights[pattern.type] += learningRate;
           if (features.isArithmetic) {
@@ -228,19 +207,23 @@ const createMLSystem = () => {
           if (features.isGeometric) {
             this.memory.weights[PATTERN_TYPES.GEOMETRIC] += learningRate * 0.5;
           }
+          if (features.isQuadratic) {
+            this.memory.weights[PATTERN_TYPES.QUADRATIC] += learningRate * 0.5;
+          }
+          if (features.isExponential) {
+            this.memory.weights[PATTERN_TYPES.EXPONENTIAL] += learningRate * 0.5;
+          }
         } else {
           this.memory.weights[pattern.type] = Math.max(0.1,
             this.memory.weights[pattern.type] - learningRate * 0.5
           );
         }
 
-        // Normalize weights
         const total = Object.values(this.memory.weights).reduce((a, b) => a + b, 0);
         Object.keys(this.memory.weights).forEach(key => {
           this.memory.weights[key] /= total;
         });
 
-        // Update history
         this.memory.recentResults.push(success);
         if (this.memory.recentResults.length > 10) {
           this.memory.recentResults.shift();
@@ -251,20 +234,12 @@ const createMLSystem = () => {
       }
     },
 
-    /**
-     * Calculates success rate for pattern type
-     * @private
-     */
     getSuccessRate(patternType) {
       const patterns = this.memory.patterns.filter(p => p.pattern.type === patternType);
       if (patterns.length === 0) return 0.5;
       return patterns.filter(p => p.success).length / patterns.length;
     },
 
-    /**
-     * Updates confidence history
-     * @private
-     */
     updateConfidenceHistory(confidence) {
       this.memory.confidenceHistory.push({
         confidence: Math.max(0, Math.min(1, confidence)),
@@ -275,18 +250,13 @@ const createMLSystem = () => {
       }
     },
 
-    /**
-     * Cleans up resources
-     */
     cleanup() {
       computationCache.clear();
     }
   };
 };
 
-/**
- * Custom hook for managing ML system
- */
+// Custom hook for managing ML system
 const useMLSystem = () => {
   const mlSystemRef = useRef(null);
   
@@ -294,7 +264,6 @@ const useMLSystem = () => {
     mlSystemRef.current = createMLSystem();
   }
 
-  // Memoize system status
   const systemStatus = useMemo(() => ({
     weights: mlSystemRef.current.memory.weights,
     recentResults: mlSystemRef.current.memory.recentResults,
@@ -303,7 +272,6 @@ const useMLSystem = () => {
     confidenceHistory: mlSystemRef.current.memory.confidenceHistory
   }), [mlSystemRef.current.memory.recentResults.length]);
 
-  // Cleanup on unmount
   useEffect(() => () => mlSystemRef.current.cleanup(), []);
 
   return {
@@ -312,9 +280,7 @@ const useMLSystem = () => {
   };
 };
 
-/**
- * Custom hook for managing challenges
- */
+// Custom hook for managing challenges
 const useChallenge = (mlSystem, onComplete) => {
   const [state, setState] = useState({
     currentChallenge: null,
@@ -327,9 +293,60 @@ const useChallenge = (mlSystem, onComplete) => {
 
   const generateNewChallenge = useCallback(() => {
     try {
-      const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
-      const nextNumber = sequence[sequence.length - 1] * 2;
-      
+      const challengeTypes = [PATTERN_TYPES.ARITHMETIC, PATTERN_TYPES.GEOMETRIC, PATTERN_TYPES.QUADRATIC, PATTERN_TYPES.EXPONENTIAL];
+      const weights = Object.entries(mlSystem.memory.weights);
+      const totalWeight = weights.reduce((sum, [, weight]) => sum + weight, 0);
+      const randomValue = Math.random() * totalWeight;
+      let cumulativeWeight = 0;
+      let randomType = PATTERN_TYPES.ARITHMETIC; // Default
+
+      for (const [type, weight] of weights) {
+        cumulativeWeight += weight;
+        if (randomValue < cumulativeWeight) {
+          randomType = type;
+          break;
+        }
+      }
+
+      let sequence;
+      let nextNumber;
+
+      switch (randomType) {
+        case PATTERN_TYPES.ARITHMETIC:
+          const start = Math.floor(Math.random() * 10);
+          const diff = Math.floor(Math.random() * 5) + 1;
+          sequence = Array.from({ length: 5 }, (_, i) => start + i * diff);
+          nextNumber = start + 5 * diff;
+          break;
+        case PATTERN_TYPES.GEOMETRIC:
+          const a = Math.floor(Math.random() * 5) + 1;
+          const r = Math.floor(Math.random() * 3) + 1;
+          sequence = Array.from({ length: 5 }, (_, i) => a * Math.pow(r, i));
+          nextNumber = a * Math.pow(r, 5);
+          break;
+        case PATTERN_TYPES.QUADRATIC:
+          const aQuad = Math.floor(Math.random() * 5) + 1;
+          const bQuad = Math.floor(Math.random() * 5) + 1;
+          const cQuad = Math.floor(Math.random() * 5) + 1;
+          sequence = Array.from({ length: 5 }, (_, i) => aQuad * i * i + bQuad * i + cQuad);
+          nextNumber = aQuad * 25 + bQuad * 5 + cQuad;
+          break;
+        case PATTERN_TYPES.EXPONENTIAL:
+          const aExp = Math.floor(Math.random() * 5) + 1;
+          const bExp = Math.floor(Math.random() * 3) + 1;
+          sequence = Array.from({ length: 5 }, (_, i) => aExp * Math.pow(bExp, i));
+          nextNumber = aExp * Math.pow(bExp, 5);
+          break;
+        default:
+          console.warn("Unknown Pattern Type. Defaulting to Arithmetic");
+          const startDef = Math.floor(Math.random() * 10);
+          const diffDef = Math.floor(Math.random() * 5) + 1;
+          sequence = Array.from({ length: 5 }, (_, i) => startDef + i * diffDef);
+          nextNumber = startDef + 5 * diffDef;
+          randomType = PATTERN_TYPES.ARITHMETIC;
+          break;
+      }
+
       setState(prev => ({
         ...prev,
         currentChallenge: {
@@ -337,7 +354,7 @@ const useChallenge = (mlSystem, onComplete) => {
           data: {
             sequence,
             nextNumber,
-            pattern: { type: PATTERN_TYPES.ARITHMETIC }
+            pattern: { type: randomType }
           },
           startTime: Date.now()
         },
@@ -355,7 +372,7 @@ const useChallenge = (mlSystem, onComplete) => {
         }
       }));
     }
-  }, []);
+  }, [mlSystem]);
 
   const handleAISolve = useCallback(async () => {
     if (!state.currentChallenge || state.isAISolving) return;
@@ -455,9 +472,7 @@ const useChallenge = (mlSystem, onComplete) => {
   };
 };
 
-/**
- * Performance Metrics Component for visualization
- */
+// PerformanceMetrics Component
 const PerformanceMetrics = ({ data }) => {
   const chartData = useMemo(() => ({
     labels: data.map(d => new Date(d.timestamp).toLocaleDateString()),
@@ -489,9 +504,7 @@ const PerformanceMetrics = ({ data }) => {
   );
 };
 
-/**
- * Progress Details Component
- */
+// ProgressDetails Component
 const ProgressDetails = ({ report }) => (
   <Card>
     <CardHeader>
@@ -554,70 +567,5 @@ const ProgressDetails = ({ report }) => (
               role="progressbar"
               aria-valuenow={report.levelProgress * 100}
               aria-valuemin={0}
-              aria-valuemax={100}
-            />
-          </div>
-        </div>
-        <div className="p-4 bg-gray-50 rounded-lg">
-          <div className="text-sm text-gray-500">Success Rate</div>
-          <div className="text-xl font-bold mt-1">
-            {(report.successRate * 100).toFixed(1)}%
-          </div>
-          <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500"
-              style={{ width: `${report.successRate * 100}%` }}
-              role="progressbar"
-              aria-valuenow={report.successRate * 100}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Pattern Performance */}
-      <div>
-        <h3 className="text-sm font-medium text-gray-600 mb-2">Pattern Performance</h3>
-        <div className="grid gap-2">
-          {Object.entries(report.patternPerformance || {}).map(([pattern, stats]) => (
-            <div key={pattern} className="p-3 bg-gray-50 rounded">
-              <div className="flex justify-between items-center mb-1">
-                <span className="font-medium capitalize">{pattern}</span>
-                <span className="text-sm text-gray-500">
-                  {((stats.success / stats.total) * 100).toFixed(1)}% Success
-                </span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500"
-                  style={{ width: `${(stats.success / stats.total) * 100}%` }}
-                  role="progressbar"
-                  aria-valuenow={(stats.success / stats.total) * 100}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
-
-/**
- * Challenge Engine Component
- */
-const ChallengeEngine = ({ challenge, onComplete }) => {
-  const { mlSystem, systemStatus } = useMLSystem();
-  const {
-    currentChallenge,
-    userAnswer,
-    setUserAnswer,
-    feedback,
-    isAISolving,
-    aiThoughts,
-    handleAISolve,
-    submitAnswer
-  } = useChallenge(mlSystem,
+              aria-val
+       
