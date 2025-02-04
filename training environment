@@ -1,0 +1,297 @@
+```javascript
+import React, { useState } from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Brain, Trophy, Users, LineChart, Star, Target, AlertCircle, CheckCircle2, Loader } from 'lucide-react';
+
+const challengeTypes = {
+  PATTERN: 'pattern',
+  OPTIMIZATION: 'optimization'
+};
+
+// ML System for pattern detection
+const MLSystem = {
+  memory: {
+    patterns: [],
+    successRates: {},
+    weights: {
+      arithmetic: 1.0,
+      geometric: 1.0,
+      quadratic: 1.0,
+      exponential: 1.0
+    },
+    recentResults: []
+  },
+
+  extractFeatures: (sequence) => {
+    const features = {};
+    
+    // Basic statistics
+    features.mean = sequence.reduce((a, b) => a + b, 0) / sequence.length;
+    features.variance = sequence.reduce((a, b) => a + Math.pow(b - features.mean, 2), 0) / sequence.length;
+    
+    // Differences
+    const differences = sequence.slice(1).map((n, i) => n - sequence[i]);
+    features.diffMean = differences.reduce((a, b) => a + b, 0) / differences.length;
+    
+    // Ratios
+    const ratios = sequence.slice(1).map((n, i) => n / sequence[i]);
+    features.ratioMean = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+    
+    return features;
+  },
+
+  learn: (sequence, pattern, success) => {
+    const features = MLSystem.extractFeatures(sequence);
+    
+    MLSystem.memory.patterns.push({
+      features,
+      pattern,
+      success
+    });
+    
+    // Update weights
+    const learningRate = 0.1;
+    if (success) {
+      MLSystem.memory.weights[pattern.type] += learningRate;
+    } else {
+      MLSystem.memory.weights[pattern.type] = Math.max(0.1, MLSystem.memory.weights[pattern.type] - learningRate);
+    }
+    
+    // Track recent results
+    MLSystem.memory.recentResults.push(success);
+    if (MLSystem.memory.recentResults.length > 10) {
+      MLSystem.memory.recentResults.shift();
+    }
+  },
+
+  predict: (sequence) => {
+    const features = MLSystem.extractFeatures(sequence);
+    const weights = MLSystem.memory.weights;
+    
+    let bestType = 'unknown';
+    let bestConfidence = 0;
+    
+    Object.entries(weights).forEach(([type, weight]) => {
+      const confidence = weight * Math.random(); // Simplified prediction
+      if (confidence > bestConfidence) {
+        bestType = type;
+        bestConfidence = confidence;
+      }
+    });
+    
+    return {
+      type: bestType,
+      confidence: bestConfidence
+    };
+  }
+};
+
+const ChallengeEngine = ({ onComplete }) => {
+  const [currentChallenge, setCurrentChallenge] = useState(null);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [isAISolving, setIsAISolving] = useState(false);
+  const [aiThoughts, setAiThoughts] = useState([]);
+
+  const generateNewChallenge = () => {
+    const sequence = Array.from({ length: 5 }, (_, i) => i * 2 + Math.random());
+    const nextNumber = sequence[sequence.length - 1] * 2;
+    
+    setCurrentChallenge({
+      type: challengeTypes.PATTERN,
+      data: {
+        sequence,
+        nextNumber,
+        pattern: { type: 'arithmetic' }
+      },
+      startTime: Date.now()
+    });
+    
+    setUserAnswer('');
+    setFeedback(null);
+    setAttemptCount(0);
+    setAiThoughts([]);
+  };
+
+  const handleAISolve = () => {
+    setIsAISolving(true);
+    setAiThoughts([]);
+    
+    const addThought = (thought) => {
+      setAiThoughts(prev => [...prev, thought]);
+    };
+
+    const sequence = currentChallenge.data.sequence;
+    
+    setTimeout(() => {
+      addThought("Analyzing sequence pattern...");
+      const prediction = MLSystem.predict(sequence);
+      
+      setTimeout(() => {
+        addThought(`Detected ${prediction.type} pattern with ${(prediction.confidence * 100).toFixed(1)}% confidence`);
+        
+        setTimeout(() => {
+          const nextValue = sequence[sequence.length - 1] * 2;
+          addThought(`Predicting next value: ${nextValue.toFixed(2)}`);
+          setUserAnswer(nextValue.toFixed(2));
+          setIsAISolving(false);
+        }, 1000);
+      }, 1000);
+    }, 1000);
+  };
+
+  const submitAnswer = () => {
+    const isCorrect = Math.abs(Number(userAnswer) - currentChallenge.data.nextNumber) < 0.001;
+    
+    if (currentChallenge.type === challengeTypes.PATTERN) {
+      MLSystem.learn(
+        currentChallenge.data.sequence,
+        currentChallenge.data.pattern,
+        isCorrect
+      );
+    }
+    
+    const timeTaken = (Date.now() - currentChallenge.startTime) / 1000;
+    const newAttemptCount = attemptCount + 1;
+    setAttemptCount(newAttemptCount);
+    
+    if (isCorrect) {
+      const score = Math.max(0, 100 - (newAttemptCount - 1) * 20 - timeTaken / 10);
+      setFeedback({
+        status: 'success',
+        message: `Correct! Score: ${score.toFixed(1)}`,
+        score
+      });
+      onComplete?.(score);
+    } else {
+      setFeedback({
+        status: 'error',
+        message: 'Not quite right. Try again!'
+      });
+    }
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="w-6 h-6" />
+          Challenge Engine
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!currentChallenge ? (
+          <button
+            onClick={generateNewChallenge}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            Start New Challenge
+          </button>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-lg font-semibold mb-2">Pattern Challenge</h3>
+              <pre className="whitespace-pre-wrap">
+                {JSON.stringify(currentChallenge.data.sequence, null, 2)}
+              </pre>
+            </div>
+            
+            <div className="flex gap-4">
+              <input
+                type="text"
+                value={userAnswer}
+                onChange={(e) => setUserAnswer(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your answer..."
+              />
+              <button
+                onClick={submitAnswer}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                disabled={isAISolving}
+              >
+                Submit
+              </button>
+              <button
+                onClick={handleAISolve}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                disabled={isAISolving}
+              >
+                Let AI Solve
+              </button>
+            </div>
+            
+            {/* ML System Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="w-6 h-6" />
+                  ML System Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Pattern Weights</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {Object.entries(MLSystem.memory.weights).map(([type, weight]) => (
+                        <div key={type} className="flex justify-between items-center">
+                          <span className="text-sm capitalize">{type}</span>
+                          <span className="text-sm font-medium">{weight.toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-600 mb-2">Recent Performance</h4>
+                    <div className="flex gap-1">
+                      {MLSystem.memory.recentResults.map((success, i) => (
+                        <div
+                          key={i}
+                          className={`flex-1 h-2 rounded ${
+                            success ? 'bg-green-500' : 'bg-red-500'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Thoughts */}
+            {aiThoughts.length > 0 && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg space-y-2">
+                <h4 className="font-medium text-gray-700">AI Thoughts:</h4>
+                {aiThoughts.map((thought, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <Brain className="w-4 h-4 mt-1 text-blue-500" />
+                    <p className="text-sm text-gray-600">{thought}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Feedback */}
+            {feedback && (
+              <div className={`flex items-center gap-2 p-4 rounded-lg ${
+                feedback.status === 'success' ? 'bg-green-100' : 'bg-red-100'
+              }`}>
+                {feedback.status === 'success' ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                )}
+                <p className="text-sm">{feedback.message}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+export default ChallengeEngine;
+```
